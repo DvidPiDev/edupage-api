@@ -220,6 +220,25 @@ class Lunches(Module):
             response.split("edupageData: ")[1].split(",\r\n")[0]
         )
 
-        return lunch_data
+        lunches_data = lunch_data.get(self.edupage.subdomain)
+        if lunches_data is None:
+            lunches_data = next(iter(lunch_data.values()))
+
+        try:
+            boarder_id = (
+                lunches_data.get("novyListok").get("addInfo").get("stravnikid")
+            )
+        except AttributeError as e:
+            raise InvalidMealsData(f"Missing boarder id: {e}")
+
+        meals = lunches_data.get("novyListok").get(date.strftime("%Y-%m-%d"))
+        if meals is None:
+            return None
+
+        snack = self.parse_meal("1", meals.get("1"), boarder_id, date)
+        lunch = self.parse_meal("2", meals.get("2"), boarder_id, date)
+        afternoon_snack = self.parse_meal("3", meals.get("3"), boarder_id, date)
+
+        return Meals(snack, lunch, afternoon_snack)
         
         
