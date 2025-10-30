@@ -1,4 +1,4 @@
-**This fork is a pathed version specifically for schools that share the same lunch with multiple schools, but under a subdomain that doesn't match the student's school.** \
+**This fork is a patched version specifically for schools that share the same lunch with multiple schools, but under a subdomain that doesn't match the student's school.** \
 This fix tries to find the school subdomain (the one you're logged in with), but if it fails, it just falls back to whatever is the first item - which is probably the correct one.
 
 # `edupage-api` &middot; [![Current version on PyPI](https://img.shields.io/pypi/v/edupage-api)](https://pypi.org/project/edupage-api/) [![Supported Python versions](https://img.shields.io/pypi/pyversions/edupage-api)](https://pypi.org/project/edupage-api/) [![PyPI - Downloads](https://img.shields.io/pypi/dw/edupage-api)](https://pypistats.org/packages/edupage-api) [![CodeFactor](https://www.codefactor.io/repository/github/EdupageAPI/edupage-api/badge)](https://www.codefactor.io/repository/github/EdupageAPI/edupage-api)
