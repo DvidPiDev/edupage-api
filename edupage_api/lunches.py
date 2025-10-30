@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 from enum import Enum
 
@@ -11,6 +11,7 @@ from edupage_api.exceptions import (
     NotLoggedInException,
 )
 from edupage_api.module import EdupageModule, Module, ModuleHelper
+import copy
 
 
 @dataclass
@@ -220,6 +221,144 @@ class Lunches(Module):
             response.split("edupageData: ")[1].split(",\r\n")[0]
         )
 
-        return lunch_data
+        root = lunch_data.get("robotnik", {}).get("novyListok", lunch_data.get("robotnik", lunch_data))
+
+        # compute monday..friday for the given 'date' param
+        monday = date - timedelta(days=date.weekday())
+        week_keys = [(monday + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(5)]
+
+        def _extract_primary_day(obj):
+            """Normalize a day's raw object:
+               - prefer the content of '2' if available
+               - remove 'nevarisa'
+               - if not cooking -> {'isCooking': False}
+               - produce { isCooking, (isRating?), menus:{'1'|'2': [...]}, reviews:{'1'|'2': {average,amount}} }
+            """
+            if not isinstance(obj, dict):
+                return {"isCooking": False}
+
+            # pick best source: prefer '2', fallback to merging 0/2/4
+            if "2" in obj and isinstance(obj["2"], dict):
+                merged = copy.deepcopy(obj["2"])
+            else:
+                merged = {}
+                for k in ("2", "0", "4"):
+                    if k in obj and isinstance(obj[k], dict):
+                        merged.update(copy.deepcopy(obj[k]))
+
+            # remove unwanted flag
+            merged.pop("nevarisa", None)
+
+            # if not cooking then keep only that
+            if not merged.get("isCooking"):
+                return {"isCooking": False}
+
+            out = {}
+            out["isCooking"] = True
+            # preserve isRating if present (keeps rating flag info)
+            if "isRating" in merged:
+                out["isRating"] = merged["isRating"]
+
+            # --- menus: build lists for "1" and "2" with only {name,weight:int} ---
+            menus_out = {}
+            menus = merged.get("menus", {}) or {}
+            for mid in ("1", "2"):
+                rows = menus.get(mid, {}).get("rows", []) if isinstance(menus.get(mid, {}), dict) else []
+                cleaned = []
+                for r in rows:
+                    name = r.get("nazov")
+                    if not name:
+                        continue
+                    # weight can appear under a few keys; attempt them
+                    weight_val = None
+                    for wk in ("hmotnostiStr", "hmotnostStr", "hmotnosti", "hmotnost"):
+                        if wk in r and r[wk] is not None:
+                            try:
+                                # sometimes string, sometimes number; be permissive
+                                weight_val = int(float(str(r[wk]).strip()))
+                            except Exception:
+                                weight_val = None
+                            break
+                    # if weight missing, default to 0 to keep structure predictable
+                    cleaned.append({"name": name, "weight": (weight_val if weight_val is not None else 0)})
+                menus_out[mid] = cleaned
+            out["menus"] = menus_out
+
+            # --- reviews: create keys "1" and "2", average priemer(s) -> float rounded to 2 dec, amount from first item ---
+            hodnotenia = merged.get("hodnotenia", {}) or {}
+            reviews_out = {}
+            for mid in ("1", "2"):
+                arr = hodnotenia.get(mid)
+                if arr and isinstance(arr, list) and len(arr) > 0:
+                    # remove any 'hodnotenie' fields implicitly by ignoring them
+                    pr_list = []
+                    for it in arr:
+                        if it is None:
+                            continue
+                        pr = it.get("priemer")
+                        if pr is None:
+                            continue
+                        try:
+                            pr_list.append(float(pr))
+                        except Exception:
+                            pass
+                    if pr_list:
+                        avg = round(sum(pr_list) / len(pr_list), 2)
+                    else:
+                        avg = -1.0
+                    try:
+                        amount = int(arr[0].get("pocet", 0))
+                    except Exception:
+                        amount = 0
+                    reviews_out[mid] = {"average": avg, "amount": amount}
+                else:
+                    # ensure presence if missing per spec
+                    reviews_out[mid] = {"average": -1, "amount": 0}
+            out["reviews"] = reviews_out
+
+            return out
+
+        # Build final result for Mon-Fri (ensuring missing days inserted)
+        result = {}
+        for wk in week_keys:
+            day_obj = root.get(wk)
+            if day_obj is None:
+                result[wk] = {"isCooking": False}
+            else:
+                result[wk] = _extract_primary_day(day_obj)
+
+        # --- info: move addInfo -> info, move info2 contents, rename fields ---
+        add_info = root.get("addInfo") or root.get("addinfo") or {}
+        if add_info:
+            info = {}
+            # id from stravnikid (string -> int)
+            sid = add_info.get("stravnikid") or (add_info.get("strRow", {}) or {}).get("stravnikid")
+            if sid is not None:
+                try:
+                    info["id"] = int(sid)
+                except Exception:
+                    info["id"] = None
+            # credit
+            info["credit"] = add_info.get("kredit") if add_info.get("kredit") is not None else (
+                        add_info.get("info2") or {}).get("kredit")
+            # days from info2.pocetDni
+            info["days"] = (add_info.get("info2") or {}).get("pocetDni")
+            # user: map strRow.meno -> name, priezvisko -> surname
+            str_row = add_info.get("strRow") or {}
+            if str_row:
+                user = {}
+                if "meno" in str_row:
+                    user["name"] = str_row.get("meno")
+                if "priezvisko" in str_row:
+                    user["surname"] = str_row.get("priezvisko")
+                if user:
+                    info["user"] = user
+
+            result["info"] = info
+
+        # replace lunch_data with the cleaned payload
+        lunch_data = result
+
+        return result
         
         
