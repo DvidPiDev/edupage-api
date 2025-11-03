@@ -57,9 +57,9 @@ class Menu:
     rating: Optional[Rating]
 
 class MealType(Enum):
-    SNACK = 1
+    SNACK = 0
     LUNCH = 2
-    AFTERNOON_SNACK = 3
+    AFTERNOON_SNACK = 4
 
 @dataclass
 class Meal:
@@ -154,7 +154,7 @@ class Lunches(Module):
         title = meal.get("nazov")
 
         amount_of_foods = meal.get("druhov_jedal")
-        chooseable_menus = meal.get("choosableMenus"), []
+        chooseable_menus = meal.get("choosableMenus", [])
 
         can_be_changed_until = meal.get("zmen_do")
 
