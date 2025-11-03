@@ -233,8 +233,8 @@ class Lunches(Module):
         if meals is None:
             return None
 
-        snack = self.parse_meal("1", meals.get("1"), boarder_id, date)
+        snack = self.parse_meal("0", meals.get("0"), boarder_id, date)
         lunch = self.parse_meal("2", meals.get("2"), boarder_id, date)
-        afternoon_snack = self.parse_meal("3", meals.get("3"), boarder_id, date)
+        afternoon_snack = self.parse_meal("4", meals.get("4"), boarder_id, date)
 
         return Meals(snack, lunch, afternoon_snack)
