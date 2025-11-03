@@ -154,7 +154,7 @@ class Lunches(Module):
         title = meal.get("nazov")
 
         amount_of_foods = meal.get("druhov_jedal")
-        chooseable_menus = list(meal.get("choosableMenus").keys())
+        chooseable_menus = meal.get("choosableMenus"), []
 
         can_be_changed_until = meal.get("zmen_do")
 
