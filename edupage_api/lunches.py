@@ -220,7 +220,8 @@ class Lunches(Module):
         lunch_data = json.loads(
             response.split("edupageData: ")[1].split(",\r\n")[0]
         )
-        lunches_data = next(iter(lunch_data))
+        first_key = next(iter(lunch_data))
+        lunches_data = lunch_data[first_key]
         try:
             boarder_id = (
                 lunches_data.get("novyListok").get("addInfo").get("stravnikid")
