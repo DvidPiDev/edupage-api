@@ -170,30 +170,30 @@ class Lunches(Module):
             number = food.get("menusStr")
             rating = None
 
-            if number is not None:
-                number = number.replace(": ", "")
-                rating = meal.get("hodnotenia")
-                if rating is not None and rating:
-                    rating = rating.get(number)
+            #if number is not None:
+            #    number = number.replace(": ", "")
+            #    rating = meal.get("hodnotenia")
+            #    if rating is not None and rating:
+            #        rating = rating.get(number)
 
-                    [quality, quantity] = rating
+            #        [quality, quantity] = rating
 
-                    quality_average = quality.get("priemer")
-                    quality_ratings = quality.get("pocet")
+            #        quality_average = quality.get("priemer")
+            #        quality_ratings = quality.get("pocet")
 
-                    quantity_average = quantity.get("priemer")
-                    quantity_ratings = quantity.get("pocet")
+            #        quantity_average = quantity.get("priemer")
+            #        quantity_ratings = quantity.get("pocet")
 
-                    rating = Rating(
-                        date.strftime("%Y-%m-%d"),
-                        boarder_id,
-                        quality_average,
-                        quantity_average,
-                        quality_ratings,
-                        quantity_ratings,
-                    )
-                else:
-                    rating = None
+            #        rating = Rating(
+            #            date.strftime("%Y-%m-%d"),
+            #            boarder_id,
+            #            quality_average,
+            #            quantity_average,
+            #            quality_ratings,
+            #            quantity_ratings,
+            #        )
+            #    else:
+            #        rating = None
             menus.append(Menu(name, allergens, weight, number, rating))
         
         return Meal(
