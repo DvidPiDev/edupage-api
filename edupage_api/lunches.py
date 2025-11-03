@@ -220,136 +220,20 @@ class Lunches(Module):
         lunch_data = json.loads(
             response.split("edupageData: ")[1].split(",\r\n")[0]
         )
+        lunches_data = next(iter(lunch_data))
+        try:
+            boarder_id = (
+                lunches_data.get("novyListok").get("addInfo").get("stravnikid")
+            )
+        except AttributeError as e:
+            raise InvalidMealsData(f"Missing boarder id: {e}")
 
-        root = lunch_data.get("robotnik", {}).get("novyListok", lunch_data.get("robotnik", lunch_data))
+        meals = lunches_data.get("novyListok").get(date.strftime("%Y-%m-%d"))
+        if meals is None:
+            return None
 
-        monday = date - timedelta(days=date.weekday())
-        week_keys = [(monday + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(5)]
+        snack = self.parse_meal("1", meals.get("1"), boarder_id, date)
+        lunch = self.parse_meal("2", meals.get("2"), boarder_id, date)
+        afternoon_snack = self.parse_meal("3", meals.get("3"), boarder_id, date)
 
-        _ALLOWED_CHARS = re.compile(r"[^A-Za-z0-9čšžľřťďňéŕýúíóáĺäôČŠŽĽŘŤĎŇÉŔÝÚÍÓÁĹÄÔ\s]+")
-
-        def _clean_name(name: str) -> str:
-            """Remove disallowed chars, 'I.' tokens, and trim spaces."""
-            if not isinstance(name, str):
-                return ""
-            name = name.replace("I.", "")
-            name = _ALLOWED_CHARS.sub("", name)
-            return name.strip()
-
-        def _extract_primary_day(obj):
-            if not isinstance(obj, dict):
-                return {"isCooking": False}
-
-            if "2" in obj and isinstance(obj["2"], dict):
-                merged = copy.deepcopy(obj["2"])
-            else:
-                merged = {}
-                for k in ("2", "0", "4"):
-                    if k in obj and isinstance(obj[k], dict):
-                        merged.update(copy.deepcopy(obj[k]))
-
-            merged.pop("nevarisa", None)
-
-            if not merged.get("isCooking"):
-                return {"isCooking": False}
-
-            out = {"isCooking": True}
-            if "isRating" in merged:
-                out["isRating"] = merged["isRating"]
-
-            pick_val = 0
-            evidencia = merged.get("evidencia", {})
-            if isinstance(evidencia, dict):
-                obj_code = evidencia.get("obj")
-                stav = evidencia.get("stav")
-                if stav == "X":
-                    pick_val = 0
-                elif obj_code == "A":
-                    pick_val = 1
-                elif obj_code == "B":
-                    pick_val = 2
-            out["pick"] = pick_val
-
-            menus_out = {}
-            menus = merged.get("menus", {}) or {}
-            for mid in ("1", "2"):
-                rows = menus.get(mid, {}).get("rows", []) if isinstance(menus.get(mid, {}), dict) else []
-                cleaned = []
-                for r in rows:
-                    nm = _clean_name(r.get("nazov", ""))
-                    if not nm:
-                        continue
-                    wv = None
-                    for wk in ("hmotnostiStr", "hmotnostStr", "hmotnosti", "hmotnost"):
-                        if wk in r and r[wk] is not None:
-                            try:
-                                wv = int(float(str(r[wk]).strip()))
-                            except Exception:
-                                pass
-                            break
-                    cleaned.append({"name": nm, "weight": wv or 0})
-                menus_out[mid] = cleaned
-            out["menus"] = menus_out
-
-            hodnotenia = merged.get("hodnotenia", {}) or {}
-            reviews_out = {}
-            for mid in ("1", "2"):
-                arr = hodnotenia.get(mid)
-                if arr and isinstance(arr, list) and len(arr) > 0:
-                    pr_list = []
-                    for it in arr:
-                        if it is None:
-                            continue
-                        pr = it.get("priemer")
-                        if pr is None:
-                            continue
-                        try:
-                            pr_list.append(float(pr))
-                        except Exception:
-                            pass
-                    avg = round(sum(pr_list) / len(pr_list), 2) if pr_list else -1.0
-                    try:
-                        amount = int(arr[0].get("pocet", 0))
-                    except Exception:
-                        amount = 0
-                    reviews_out[mid] = {"average": avg, "amount": amount}
-                else:
-                    reviews_out[mid] = {"average": -1, "amount": 0}
-            out["reviews"] = reviews_out
-
-            return out
-
-        result = {}
-        for wk in week_keys:
-            day_obj = root.get(wk)
-            if day_obj is None:
-                result[wk] = {"isCooking": False}
-            else:
-                result[wk] = _extract_primary_day(day_obj)
-
-        add_info = root.get("addInfo") or root.get("addinfo") or {}
-        if add_info:
-            info = {}
-            sid = add_info.get("stravnikid") or (add_info.get("strRow", {}) or {}).get("stravnikid")
-            if sid is not None:
-                try:
-                    info["id"] = int(sid)
-                except Exception:
-                    info["id"] = None
-            info["credit"] = add_info.get("kredit") if add_info.get("kredit") is not None else (
-                        add_info.get("info2") or {}).get("kredit")
-            info["days"] = (add_info.get("info2") or {}).get("pocetDni")
-            str_row = add_info.get("strRow") or {}
-            if str_row:
-                user = {}
-                if "meno" in str_row:
-                    user["name"] = str_row.get("meno")
-                if "priezvisko" in str_row:
-                    user["surname"] = str_row.get("priezvisko")
-                if user:
-                    info["user"] = user
-            result["info"] = info
-
-        return result
-        
-        
+        return Meals(snack, lunch, afternoon_snack)
